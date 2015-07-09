@@ -1,7 +1,11 @@
 package artemis_helm;
 
+import java.io.IOException;
+import java.lang.Math;
+
 import org.apache.log4j.Logger;
 import org.apache.log4j.BasicConfigurator;
+
 import com.pi4j.io.gpio.GpioController;
 import com.pi4j.io.gpio.GpioFactory;
 import com.pi4j.io.gpio.GpioPin;
@@ -21,10 +25,10 @@ import com.pi4j.io.gpio.event.GpioPinDigitalStateChangeEvent;
 import com.pi4j.io.gpio.event.GpioPinEvent;
 import com.pi4j.io.gpio.event.GpioPinListenerDigital;
 import com.pi4j.io.gpio.event.PinEventType;
-import java.lang.Math;
+
 
 public class Main {
-    static Logger logger = Logger.getLogger(Main.class);
+    private static final Logger logger = Logger.getLogger(Main.class);
 
     // Set up pins
     final static GpioController gpio = GpioFactory.getInstance();
@@ -36,9 +40,24 @@ public class Main {
     static int[] last_read = {10, 10, 10}; // Stores the last value read for each potentiometer
     static int tolerance = 5;              // Jitter filter amount
 
-    public static void main(String[] args) throws InterruptedException {
+    static HelmConsole HelmConsole;
+
+    public static void main(String[] args) throws InterruptedException,IOException {
         BasicConfigurator.configure();
-        logger.info("Starting...");          
+        if (args.length == 0) {
+            System.out.println("Usage: artemis_helm {host} [port]");
+            return;
+        }
+
+        String host = args[0];
+        int port = args.length > 1 ? Integer.parseInt(args[1]) : 2010;
+
+        logger.debug("Starting...");          
+        try {
+            HelmConsole = new HelmConsole(host, port);
+        } catch (IOException ex) {
+            ex.printStackTrace();
+        }
 
         // Configure Shutdown behavior
         SPI_CLK.setShutdownOptions(true, PinState.LOW, PinPullResistance.OFF);
@@ -53,11 +72,21 @@ public class Main {
 
                 if (pot_adjust > tolerance && pot_val > tolerance) {
                     int val_percent = (int)Math.round((double)pot_val / 10.24);
-                    logger.info("Potentiomenter " + i + "'s Value: " + val_percent + "%");
+                    logger.debug("Potentiomenter " + i + "'s Value: " + val_percent + "%");
                     last_read[i] = pot_val;
                 }
             }
-            Thread.sleep(500);
+            float impulse_power = (float)last_read[1]/1024;
+            int warp_power      = last_read[2]/205;
+            float rudder_value  = (float)last_read[0]/1024;
+            logger.debug("----");
+            logger.debug("Impulse Power: " + impulse_power);
+            logger.debug("Warp Power:    " + warp_power);
+            logger.debug("Rudder Value:  " + rudder_value);
+            HelmConsole.setImpulse(impulse_power);
+            HelmConsole.setWarp(warp_power);
+            HelmConsole.setRudder(rudder_value);
+            Thread.sleep(250);
         }
     }
 

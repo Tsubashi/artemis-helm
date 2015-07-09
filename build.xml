@@ -46,6 +46,7 @@
                 <path refid="classpath"/>
                 <path refid="application"/>
             </classpath>
+            <arg line="${args}" />
         </java>
     </target>
 
